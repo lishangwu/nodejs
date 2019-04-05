@@ -1,55 +1,57 @@
 const http = require('http')
 
-function compose(middlewares){
-    return function(ctx){
-        const num = middlewares.length
-        function dispatch(i){
-            if(num === i) return 
-            console.log('i: ', i);
-            let middleware = middlewares[i]
-            try{
-                return Promise.resolve(middleware(ctx, dispatch( i+1)))
-
-            }catch(e){
-                // return Promise.reject(e)
-
+// 组合中间件
+function compose(middlewareList) {
+    return function (ctx) {
+        function dispatch(i) {
+            const fn = middlewareList[i]
+            try {
+                return Promise.resolve(
+                    fn(ctx, dispatch.bind(null, i + 1))  // promise
+                )
+            } catch (err) {
+                return Promise.reject(err)
             }
         }
-        dispatch(0)
+        return dispatch(0)
     }
 }
 
-class LikeKoa2{
-    constructor(){
-        this.middlewares = []
+class LikeKoa2 {
+    constructor() {
+        this.middlewareList = []
     }
 
-    use(fn){
-        this.middlewares.push(fn)
+    use(fn) {
+        this.middlewareList.push(fn)
         return this
     }
 
-    createContext(req, res){
-        let ctx = {req, res}
+    createContext(req, res) {
+        const ctx = {
+            req,
+            res
+        }
+        ctx.query = req.query
         return ctx
     }
 
-    handleRequest(ctx, fn){
-        fn(ctx)
+    handleRequest(ctx, fn) {
+        return fn(ctx)
     }
 
-    callback(){
-
-        let fn = compose(this.middlewares)
+    callback() {
+        const fn = compose(this.middlewareList)
 
         return (req, res) => {
-            let ctx = this.createContext(req ,res)
-            this.handleRequest(ctx, fn)
+            const ctx = this.createContext(req, res)
+            return this.handleRequest(ctx, fn)
         }
     }
 
-    listen(...args){
-        http.createServer(this.callback()).listen(...args)
+    listen(...args) {
+        const server = http.createServer(this.callback())
+        server.listen(...args)
     }
 }
 
